@@ -1,48 +1,26 @@
 import fileinput
-import pandas
-from matplotlib import pyplot
+import utils
+import tableFunctions
 
-def fr(t):
-    return t
-
-file_prefix = 'proc_table'
-
-def metDictToTablePandas(metDict, fileName):
-    df = pandas.DataFrame(metDict)
-    df = df.cumsum()
-    plot = df.plot()
-    fig = plot.get_figure()
-    fig.savefig(fileName)
-    pyplot.close('all')
-    return df.to_string()
+def generateFileNames(file_prefix, currentTimestamp):
+    cpuFileName = file_prefix + '_cpu_' + currentTimestamp.replace(':', '')
+    memFileName = file_prefix + '_mem_' + currentTimestamp.replace(':', '')
+    return cpuFileName, memFileName
 
 currentTimestamp = ''
 cpuMetDict = {}
 memMetDict = {}
+config = utils.loadConfig('config.ini')
 for line in fileinput.input():
     lineArray = line.strip().split()
 
-    if (currentTimestamp != '') and (lineArray[0] != currentTimestamp):
-        cpuFile = file_prefix + '_cpu_' + lineArray[0].replace(':', '') + '.csv'
-        memFile = file_prefix + '_mem_' + lineArray[0].replace(':', '') + '.csv'
-
-        cpuImageFile = file_prefix + '_cpu_' + lineArray[0].replace(':', '') + '.png'
-        memImageFile = file_prefix + '_mem_' + lineArray[0].replace(':', '') + '.png'
-        cpuTable = str(metDictToTablePandas(cpuMetDict, cpuImageFile)).replace("NaN", ' -1')
-        print '****CPU Table****'
-        print cpuTable
-
-        memTable = str(metDictToTablePandas(memMetDict, memImageFile)).replace("NaN", ' -1')
-        print '****Mem Table****'
-        print memTable
-
-        f = open(cpuFile, "w")
-        f.write(cpuTable)
-        f.close()
-
-        f = open(memFile, "w")
-        f.write(memTable)
-        f.close()
+    if config.getboolean('cfg', 'save_continous_stream') and (currentTimestamp != '') and (lineArray[0] != currentTimestamp):
+        cpuFile, memFile = generateFileNames(config.get('cfg', 'file_prefix'), lineArray[0])
+        cpuTable = tableFunctions.metDictToTable(cpuMetDict, config.get('cfg','folder_name'), cpuFile + '.svg')
+        memTable = tableFunctions.metDictToTable(memMetDict, config.get('cfg','folder_name'), memFile + '.svg')
+        utils.saveToFile(config.get('cfg','folder_name'), cpuFile + '.csv', cpuTable)
+        utils.saveToFile(config.get('cfg','folder_name'), memFile + '.csv', memTable)
+        print 'Saved for timestamp ' + lineArray[0]
 
     if lineArray[1] not in cpuMetDict:
         cpuMetDict[lineArray[1]] = {}
@@ -50,3 +28,10 @@ for line in fileinput.input():
     currentTimestamp = lineArray[0]
     cpuMetDict[lineArray[1]][lineArray[0]] = float(lineArray[2])
     memMetDict[lineArray[1]][lineArray[0]] = float(lineArray[3])
+
+if config['save_static'] and cpuMetDict and memMetDict:
+    cpuFile, memFile = generateFileNames(config['file_prefix'], currentTimestamp)
+    cpuTable = tableFunctions.metDictToTable(cpuMetDict, config.get('cfg','folder_name'), cpuFile + '.svg')
+    memTable = tableFunctions.metDictToTable(memMetDict, config.get('cfg','folder_name'), memFile + '.svg')
+    utils.saveToFile(config[folder_name], cpuFile + '.csv', cpuTable)
+    utils.saveToFile(config[folder_name], memFile + '.csv', memTable)
